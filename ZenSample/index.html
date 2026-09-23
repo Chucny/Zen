@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>ZenSample</title>
+<link rel="stylesheet" href="style.css">
+<script src="app.zen"></script>
+</head>
+<body>
+<div id="app">
+  <h1>ZenSample</h1>
+  <p class="sub">A webpage running as an Android app via Zen.</p>
+  <div id="status">Ready</div>
+  <div id="buttons">
+    <button onclick="Zen.toast('hi')">Toast</button>
+    <button onclick="Zen.notify('Zen','Hello from JS')">Notify</button>
+    <button onclick="getLoc()">Get location</button>
+    <button onclick="Zen.setLocationCallback(1000)">Stream loc</button>
+    <button onclick="Zen.clearLocationCallback()">Stop stream</button>
+    <button onclick="mock()">Mock loc</button>
+    <button onclick="checkRoot()">isRoot</button>
+    <button onclick="Zen.showOverlay('overlay')">Overlay on</button>
+    <button onclick="Zen.hideOverlay()">Overlay off</button>
+    <button onclick="Zen.startBackground()">BG on</button>
+    <button onclick="Zen.stopBackground()">BG off</button>
+  </div>
+</div>
+<script>
+window.__zenOnLocation = function (loc) {
+  status('lat=' + loc.latitude.toFixed(6) + ' lng=' + loc.longitude.toFixed(6));
+};
+function status(t) { document.getElementById('status').textContent = t; }
+function getLoc() {
+  var loc = Zen.getLocation();
+  status(loc && loc !== 'null' ? JSON.stringify(loc) : 'No location yet');
+}
+function mock() {
+  var lat = 55.6761 + (Math.random() - 0.5) / 100;
+  var lng = 12.5683 + (Math.random() - 0.5) / 100;
+  status(Zen.setMockLocation(lat, lng));
+}
+function checkRoot() {
+  status('root=' + Zen.isRoot() + ' ver=' + Zen.version());
+}
+</script>
+</body>
+</html>

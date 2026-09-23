@@ -1,0 +1,22 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: system-ui, sans-serif;
+  background: #101418; color: #e8eef5;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+#app { width: 100%; max-width: 420px; text-align: center; }
+h1 { font-size: 44px; letter-spacing: 2px; }
+.sub { color: #8aa0b5; margin: 8px 0 24px; }
+#status {
+  min-height: 52px; padding: 12px; margin-bottom: 16px;
+  background: #1a2129; border-radius: 10px;
+  font-family: monospace; font-size: 13px; word-break: break-all;
+}
+#buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+button {
+  padding: 14px; border: 0; border-radius: 10px;
+  background: #1E88E5; color: #fff; font-size: 15px;
+}
+button:active { opacity: .7; }
