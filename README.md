@@ -12,7 +12,7 @@ Turn any webpage into a real Android app. No Android knowledge needed.
 4. [The Zen commands](#4-the-zen-commands)
 5. [What goes inside your zip file](#5-what-goes-inside-your-zip-file)
 6. [The three special files](#6-the-three-special-files)
-7. [What happens when you run `zen.py build`](#7-what-happens-when-you-run-zenpy-build)
+7. [What happens when you run `zen build`](#7-what-happens-when-you-run-zen-build)
 8. [How your page is different from a normal website](#8-how-your-page-is-different-from-a-normal-website)
 9. [The `.zen` file trick](#9-the-zen-file-trick)
 10. [The `window.Zen` API, every function explained](#10-the-windowzen-api-every-function-explained)
@@ -61,10 +61,14 @@ your JavaScript a special helper object called **`window.Zen`**. Through it,
 your webpage can do things ordinary webpages can't:
 
 - find the phone's GPS position,
-- show system notifications,
-- pretend the phone is somewhere else (mock GPS),
+- show system notifications **and schedule real alarms**,
+- read the accelerometer, gyroscope, light, and other sensors,
+- copy/paste text, vibrate the phone, control brightness, volume and the
+  camera flash (torch),
+- watch the battery, share text with other apps, open links,
+- keep running in the background — **with its own dedicated worker script**,
 - run commands as root (if the phone is rooted),
-- keep running in the background,
+- pretend the phone is somewhere else (mock GPS),
 - and more.
 
 So:
@@ -74,7 +78,7 @@ So:
 ### A very quick mental picture
 
 ```
-  Your files (HTML/CSS/JS)  ──▶  zen.py build  ──▶  Yourapp.apk  ──▶  phone
+  Your files (HTML/CSS/JS)  ──▶  zen build  ──▶  Yourapp.apk  ──▶  phone
 
   Inside the APK, your page runs in a hidden WebView.
   Your JavaScript talks to the phone through window.Zen.
@@ -92,7 +96,8 @@ Any computer. The whole tool is written in Python, which runs everywhere.
 
 ### 2.2 Python
 
-Python is a (free) programming language. Zen is written in it.
+Python is a (free) programming language. Zen is written in it. Zen needs
+Python **3.8 or newer**.
 
 - **On Windows**: open a terminal and type `py --version`. If you see something
   like `Python 3.13.9`, you're fine. If Windows says "Python was not found",
@@ -101,8 +106,6 @@ Python is a (free) programming language. Zen is written in it.
   - Note: on Windows, `py` is the command you use. Plain `python` sometimes
     opens the Microsoft Store instead of real Python. Always type `py`.
 - **On Mac/Linux**: open a terminal and type `python3 --version`.
-
-Zen needs Python **3.8 or newer**.
 
 ### 2.3 The "toolchain" (this is the clever name for three tools)
 
@@ -120,7 +123,7 @@ You don't need to understand these. You just need them on your computer.
 Zen looks for them in two places, in this order:
 
 1. **Environment variables** (advanced): `ZEN_GRADLE`, `ZEN_SDK`, `ZEN_JAVA`.
-2. **A `toolchain` folder** sitting right next to `zen.py`:
+2. **A `toolchain` folder** sitting right next to `zen.py` (or one folder up):
 
 ```
 toolchain/
@@ -128,6 +131,10 @@ toolchain/
   gradle-8.9/          ← Gradle
   sdk/                 ← Android SDK
 ```
+
+The `zen` launcher scripts (`zen.cmd` on Windows, `zen.sh` on Mac/Linux) do
+that toolchain search for you automatically. If you have the `toolchain` folder
+in the right place, the first `zen build` just works — no variables to set.
 
 If your JDK is newer than 17 (for example 26), Gradle will refuse to work and
 the build will print `Unsupported class file major version ...`. Fix that by
@@ -149,7 +156,23 @@ building or the testing-in-the-browser parts.
 Let's make your first app. It takes about two minutes. All you need is a text
 editor (like Notepad) and a way to make a zip file.
 
-### Step 1 — make a folder
+### Step 1 — make a folder, and a one-line shortcut (do this once)
+
+In the folder that contains `zen.py` you'll also find:
+
+- **`zen.cmd`** — for Windows. Double-click it once and Windows may ask you to
+  "open as a developer"; choose that. Now you can type `zen` in a terminal.
+- **`zen.sh`** — for Mac/Linux. Make it executable once:
+
+  ```
+  chmod +x zen.sh
+  ```
+
+From now on this guide shows the short form: **`zen ...`**.
+If you'd rather not use the shortcuts, just type `py zen.py ...` (Windows) or
+`python3 zen.py ...` (Mac/Linux) wherever you see `zen`.
+
+### Step 2 — make a folder
 
 Create a new folder anywhere, for example:
 
@@ -157,7 +180,7 @@ Create a new folder anywhere, for example:
 HelloApp/
 ```
 
-### Step 2 — put a webpage inside it
+### Step 3 — put a webpage inside it
 
 Inside that folder, create a file called **`index.html`** (exact spelling:
 lowercase, no spaces). Open it in a text editor and paste this:
@@ -179,7 +202,7 @@ lowercase, no spaces). Open it in a text editor and paste this:
 
 Save it. That's it. That's a whole app now.
 
-### Step 3 — zip the folder's *contents*
+### Step 4 — zip the folder's *contents*
 
 **Important:** zip the stuff *inside* `HelloApp`, not the `HelloApp` folder
 itself. The zip must have `index.html` at its very top level.
@@ -190,15 +213,16 @@ itself. The zip must have `index.html` at its very top level.
 - **Anywhere with a terminal**: `cd` into the folder and run
   `zip -r ../HelloApp.zip .`
 
-### Step 4 — build the app
+### Step 5 — build the app
 
 Open a terminal in the same place as `zen.py` and run:
 
 ```
-py zen.py build HelloApp.zip --name "Hello App"
+zen build HelloApp.zip --name "Hello App"
 ```
 
-(On Mac/Linux use `python3 zen.py ...` instead of `py`.)
+(Or `py zen.py build HelloApp.zip --name "Hello App"` on Windows,
+`python3 zen.py build ...` on Mac/Linux.)
 
 After about 30 seconds you'll see something like:
 
@@ -207,30 +231,32 @@ After about 30 seconds you'll see something like:
 [zen] BUILD OK in 29.3s -> ...\out\Hello_App.apk
 ```
 
-That red text at the end — **`out/Hello_App.apk`** — is your app.
+That last line — **`out/Hello_App.apk`** — is your app.
 
-### Step 5 — put it on a phone
+### Step 6 — put it on a phone
 
 See [section 12](#12-putting-it-on-a-real-phone). Or, if you just want to look
-at it on your computer first, jump to [section 11](#11-testing-on-your-computer-first-the-zen-ide).
+at it on your computer first, jump to
+[section 11](#11-testing-on-your-computer-first-the-zen-ide).
 
 ---
 
 ## 4. The Zen commands
 
-All the commands start with `py zen.py`. Here they all are:
+Every command written here as `zen ...` also works as `py zen.py ...` (Windows)
+or `python3 zen.py ...` (Mac/Linux). Here are all the commands:
 
 | Command | Example | What it does |
 |---------|---------|--------------|
-| `build` | `py zen.py build myapp.zip --name "My App"` | Turns a webpage zip into an `.apk` |
-| `ide` | `py zen.py ide myapp.zip` | Shows your app in the browser so you can test it before building |
-| `init` | `py zen.py init MyApp` | Creates a sample webpage (a demo app) for you to play with |
-| `apidoc` | `py zen.py apidoc` | Prints a short list of all the `Zen.*` functions |
+| `build` | `zen build myapp.zip --name "My App"` | Turns a webpage zip into an `.apk` |
+| `ide` | `zen ide myapp.zip` | Shows your app in the browser so you can test it before building |
+| `init` | `zen init MyApp` | Creates a sample webpage (a demo app) for you to play with |
+| `apidoc` | `zen apidoc` | Prints a short list of all the `Zen.*` functions |
 
 ### `build` in detail
 
 ```
-py zen.py build <the zip file> [options]
+zen build <the zip file> [options]
 ```
 
 Options:
@@ -278,6 +304,8 @@ myapp.zip
   index.html                ← REQUIRED. The app's start page.
   style.css                 ← optional. Any other files travel along as they are.
   app.js                    ← optional. More files, folders, images… anything.
+  worker.js                 ← optional. A separate script used ONLY in the
+                               background. (See the background section.)
   icons/
     app-icon.png            ← optional. Your app's launcher icon.
   permissions/
@@ -370,7 +398,8 @@ Android what the app may use. Two things you must know:
 
 2. Some permissions don't need this file because Zen already declares them:
    internet, location, notifications, foreground service, mock location,
-   overlays, wake lock. You only add the ones *you* need beyond those.
+   overlays, wake lock, vibration, camera (for the torch), alarm rendering.
+   You only add the ones *you* need beyond those.
 
 ### 6.3 `icons/app-icon.png` — the picture on the home screen
 
@@ -382,7 +411,7 @@ it as the app's launcher icon — the picture people tap.
 
 ---
 
-## 7. What happens when you run `zen.py build`
+## 7. What happens when you run `zen build`
 
 It's worth knowing, in order, what's going on — it makes confusing errors much
 easier to read.
@@ -446,6 +475,10 @@ You never type this, but it matters for two things:
   code does things like `if (location.hostname === "appassets.androidplatform.net")`,
   that's a reliable way to detect "I'm inside the app, not a browser".
 
+> **Nice automatic safety net:** on the very rare device where that fake
+> address refuses to load, the app automatically retries using a built-in
+> `file://` address and keeps working. You normally never see this.
+
 ### 8.3 No address bar, no tabs, no "back to the internet"
 
 The user sees only your page. There is:
@@ -474,9 +507,9 @@ Still works the same as any website:
 | Browser feature | Zen app |
 |-----------------|---------|
 | Opening tabs / `window.open` / `target="_blank"` | Does nothing (no tabs anywhere) |
-| Sending the user to another website | Not possible from the UI |
+| Sending the user to another website | Not possible from the UI (use `Zen.openUrl`) |
 | **Service Workers** | Not available |
-| **Web Push / FCM notifications** | Not available (use `Zen.notify`) |
+| **Web Push / FCM notifications** | Not available (use `Zen.notify` / `Zen.setAlarm`) |
 | The website-`Notification` object | Blocked (use `Zen.notify`) |
 | `navigator.geolocation` | Unreliable in WebView (use the `Zen` location functions) |
 
@@ -491,7 +524,8 @@ Java brain. Important details:
 - If a call is slow (like `Zen.runRoot("...")`), the page waits until it's
   done. Keep heavy calls short.
 - Streams (things that repeat) are delivered to a global function *you* define,
-  like `window.__zenOnLocation`.
+  like `window.__zenOnLocation` and `window.__zenOnSensor`. See their sections
+  below.
 
 ---
 
@@ -523,12 +557,12 @@ your way. Each function is explained with:
 ### 10.1 `Zen.version()` — what's under the hood
 
 ```js
-Zen.version();   // "1.1"
+Zen.version();   // "1.2"
 ```
 
 - **Returns:** a string.
-- **Point:** mostly for you to confirm whether you're on a real phone (`"1.1"`)
-  or in the IDE preview (`"1.1-debug"` — note the `-debug`).
+- **Point:** mostly for you to confirm whether you're on a real phone (`"1.2"`)
+  or in the IDE preview (`"1.2-debug"` — note the `-debug`).
 
 ---
 
@@ -546,18 +580,20 @@ Zen.log("button pressed");
 
 ---
 
-### 10.3 `Zen.toast(msg)` — a little pop-up message
+### 10.3 `Zen.toast(msg)` and `Zen.toastLong(msg)` — little pop-up messages
 
 ```js
-Zen.toast("Saved!");
+Zen.toast("Saved!");        // short message
+Zen.toastLong("This one stays a bit longer");
 ```
 
 - **Args:** anything.
 - **Returns:** nothing.
 - **Point:** the small grey "flash" message at the bottom of the screen — the
-  one that appears on top of everything and disappears on its own. Perfect for
-  "done!", "error", "waiting..." feedback. In the IDE it becomes a small dark
-  box at the bottom of the page instead.
+  one that appears on top of everything and disappears on its own. `toast`
+  flashes briefly, `toastLong` lingers. Perfect for "done!", "error",
+  "waiting..." feedback. In the IDE both become a small dark box at the bottom
+  of the page.
 
 ---
 
@@ -675,7 +711,36 @@ Zen.notify("Order ready", "Your pizza is downstairs.");
 
 ---
 
-### 10.10 `Zen.setMockLocation(lat, lng)` — fake the GPS
+### 10.10 `Zen.setAlarm(delayMs, title, body)` and `Zen.cancelAlarm()` — real alarms
+
+This is not a timer inside your page — it's a **real system alarm**. Think of it
+like a kitchen timer: once it's set, it's the *phone* that watches the clock,
+not your app. Your page can even be completely killed and the alarm still fires.
+
+```js
+Zen.setAlarm(60000, "Reminder", "Your tea is ready");  // fires after 1 minute
+let r = Zen.setAlarm(5000, "Now", "This happened fast");
+if (r !== "ok") console.log(r);                        // e.g. "ERROR: ..."
+```
+
+- **Args:** `delayMs` (how long from now, in milliseconds), `title`, `body`.
+- **Returns:** `"ok"` or an `"ERROR: ..."` string.
+- **Point:** fires once, later, as a system notification — even while the app
+  is closed or the phone is locked.
+- **Details you can rely on:**
+  - The alarm *survives* an app restart (the phone keeps the schedule).
+  - It's "inexact" by design — Android may nudge it by a minute or two to save
+    battery. That's normal and it needs no special permissions.
+  - Setting a new alarm replaces the previous one.
+- **Cancelling:**
+
+```js
+Zen.cancelAlarm();   // "ok" if there was one, "no alarm set" otherwise
+```
+
+---
+
+### 10.11 `Zen.setMockLocation(lat, lng)` — fake the GPS
 
 ```js
 let r = Zen.setMockLocation(55.6761, 12.5683);
@@ -694,7 +759,7 @@ else console.log(r);   // an "ERROR: ..." message
 
 ---
 
-### 10.11 `Zen.isRoot()` — is this phone "rooted"?
+### 10.12 `Zen.isRoot()` — is this phone "rooted"?
 
 ```js
 if (Zen.isRoot()) console.log("superpowers available");
@@ -708,7 +773,7 @@ else console.log("normal phone");
 
 ---
 
-### 10.12 `Zen.runRoot(cmd)` — run a command as root
+### 10.13 `Zen.runRoot(cmd)` — run a command as root
 
 ```js
 let res = JSON.parse(Zen.runRoot("getprop ro.build.version.release"));
@@ -727,7 +792,7 @@ if (res.exit === 0) console.log("Android version:", res.out);
 
 ---
 
-### 10.13 `Zen.showOverlay(text)` — text that floats above everything
+### 10.14 `Zen.showOverlay(text)` — text that floats above everything
 
 ```js
 Zen.showOverlay("Recording...");
@@ -744,7 +809,7 @@ Zen.showOverlay("Recording...");
 
 ---
 
-### 10.14 `Zen.hideOverlay()` — remove the floating text
+### 10.15 `Zen.hideOverlay()` — remove the floating text
 
 ```js
 Zen.hideOverlay();
@@ -756,7 +821,7 @@ Zen.hideOverlay();
 
 ---
 
-### 10.15 `Zen.startBackground()` — keep running when you leave the app
+### 10.16 `Zen.startBackground()` — keep running when you leave the app
 
 ```js
 Zen.startBackground();   // called while the page is visible
@@ -771,13 +836,14 @@ Zen.startBackground();   // called while the page is visible
   - Call it while your page is visible (Android blocks starting it from the
     background).
   - Android 14+ limits such services to about **6 hours per day**.
-  - The hidden copy is a *second* instance of your page — avoid duplicate work,
-    or write your code so running twice is harmless.
   - In the IDE it just prints a console note.
+
+Want the hidden copy to run *different* code than your main page? See
+[10.18](#1018-senbakgroundscriptname-and-zengetbakgroundscript-dedicated-worker-script).
 
 ---
 
-### 10.16 `Zen.stopBackground()` — stop the background copy
+### 10.17 `Zen.stopBackground()` — stop the background copy
 
 ```js
 Zen.stopBackground();
@@ -789,21 +855,209 @@ Zen.stopBackground();
 
 ---
 
-### 10.17 Pattern: "auto-repeat in background"
+### 10.18 `Zen.setBackgroundScript(name)` and `Zen.getBackgroundScript()` — dedicated worker script
 
-A small realistic recipe combining bits above — a location logger that keeps
-running after you leave the app:
+By default the background copy is a second copy of your whole page (`index.html`).
+For many apps that's wasteful or confusing. Zen lets you give the background a
+**separate, tiny script** instead.
 
 ```js
-window.__zenOnLocation = function (loc) {
-  var log = JSON.parse(localStorage.getItem("log") || "[]");
-  log.push({ lat: loc.latitude, lng: loc.longitude, t: loc.time });
-  localStorage.setItem("log", JSON.stringify(log.slice(-200)));
-  Zen.notify("Logged", "position " + loc.latitude.toFixed(4));
-};
+// In your normal page:
+Zen.setBackgroundScript("worker.js");   // call BEFORE startBackground
+Zen.startBackground();
+```
 
-Zen.setLocationCallback(30000);      // every ~30 s
-Zen.startBackground();               // survive leaving the app
+- `setBackgroundScript` takes the *file name* of a script that sits inside your
+  zip (e.g. `worker.js`, or `workers/beacon.js`).
+- Once set, the hidden service loads **only that file** instead of `index.html`.
+  It runs in the same WebView, so it still has `window.Zen`, `localStorage`,
+  timers, and sensors.
+- The setting is remembered by the app, so you only need to call it once (or
+  indeed call it every launch — it's cheap).
+- Call `Zen.getBackgroundScript()` to read back the current value.
+
+A worker file is a normal JavaScript file:
+
+```html
+<!-- worker.js -->
+console.log('background worker alive', Zen.version());
+setInterval(function () {
+  // e.g. phone home, write to localStorage, notify…
+}, 60000);
+```
+
+**How the two copies stay in sync:** they share the app's `localStorage`, so you
+can use a role flag to tell who's who:
+
+```js
+// same code runs in both copies; each marks itself
+localStorage.setItem("zen.role", location.pathname === "/worker.js" ? "bg" : "fg");
+if (location.pathname === "/worker.js") {
+  // background copy: do the background job
+} else {
+  // foreground copy: show the UI, and start the background via
+  Zen.setBackgroundScript("worker.js");
+  Zen.startBackground();
+}
+```
+
+---
+
+### 10.19 Sensors — `Zen.subscribeSensor(name, ms)` and `Zen.unsubscribeSensor(name)`
+
+Your app can stream the phone's sensors to JavaScript. First define a callback,
+then subscribe:
+
+```js
+window.__zenOnSensor = function (name, data) {
+  // 'accelerometer': {x, y, z, t}   (three-axis sensors)
+  // 'light':         {v, t}         (single-value sensors)
+  console.log(name, data);
+};
+Zen.subscribeSensor("accelerometer", 100);   // a reading ~every 100 ms
+```
+
+- **Available names:** `accelerometer`, `gyroscope` (alias `gyro`),
+  `magnetometer`, `light`, `proximity`, `pressure` (alias `barometer`).
+- **`ms`:** the fastest pace you want, in milliseconds (the sensor is never
+  faster than this; the phone may be slower).
+- **Returns:** `"ok"`, `"already subscribed"`, or an `"ERROR: ..."` string.
+  `ERROR: no accelerometer on this device` simply means the hardware isn't
+  there (common for `pressure`, which many cheap phones lack).
+- **Stop listening:**
+
+```js
+Zen.unsubscribeSensor("accelerometer");   // "ok" or "not subscribed"
+```
+
+- **Data shapes:**
+  - three-axis sensors (`accelerometer`, `gyroscope`, `magnetometer`):
+    `{x, y, z, t}` — acceleration/g-/μT per axis; `t` is ms-since-epoch.
+  - single-value sensors (`light`, `proximity`, `pressure`): `{v, t}` — lux /
+    cm / hPa.
+- **In the IDE:** always `ERROR: no sensors in the browser`. (Your computer has
+  no phone sensors.)
+
+**Careful:** sensor streams can eat battery. Always `unsubscribeSensor` when
+you're done.
+
+---
+
+### 10.20 Device & hardware — brightness, vibration, volume, torch, battery, info
+
+A grab-bag of phone controls. Each returns `"ok"` or an `"ERROR: ..."` string
+(except `now`, `battery`, `device`).
+
+```js
+Zen.setBrightness(128);        // screen brightness 0..255 (foreground only)
+Zen.keepScreenOn(true);        // stay awake while your page is open
+Zen.wakeLock(true);            // keep the CPU running for background JS (10 min cap)
+Zen.vibrate(200);              // buzz for 200 ms (clamped 1..60000)
+Zen.setVolume("music", 50);    // 0..100 on stream: music|ring|alarm|notification
+Zen.setTorch(true);            // camera flash on ("ERROR: ..." if denied/no flash)
+```
+
+Details:
+
+- `setBrightness` changes the *screen* brightness only while your page is
+  visible (`"ERROR: not available in background"` inside the service).
+- `keepScreenOn` uses the "stay awake while visible" flag — perfect for a
+  slideshow or a barcode scanner.
+- `wakeLock` grabs a partial CPU wake lock so background work isn't throttled
+  while the screen is off. It auto-releases after 10 minutes for safety; pass
+  `false` to release early.
+- `vibrate` needs no permission.
+
+Plus three one-shot info calls:
+
+```js
+Zen.now();                     // number, ms since 1970-01-01 (same as Date.now())
+Zen.battery();                 // '{"level":72,"status":"discharging","plugged":"none"}'
+                               // status: discharging | charging | full
+                               // plugged: none | ac | usb | wireless
+Zen.device();                  // '{"brand":"google","model":"Pixel 8",
+                               //  "manufacturer":"Google","sdk":35,
+                               //  "release":"14","arch":"aarch64"}'
+```
+
+`battery()` and `device()` return JSON *strings* — `JSON.parse` them.
+
+---
+
+### 10.21 Clipboard — `Zen.clipboardWrite(text)` and `Zen.clipboardRead()`
+
+```js
+Zen.clipboardWrite("https://zen.rocks");   // true
+Zen.clipboardRead();                        // "https://zen.rocks"
+```
+
+- `clipboardWrite` copies text to the system clipboard; returns `true`/`false`.
+- `clipboardRead` returns the current clipboard text, or `""` when it's empty
+  or `ClipboardManager` says so.
+
+---
+
+### 10.22 Intents — `Zen.openUrl(url)` and `Zen.share(title, text)`
+
+These hand off to **other apps** on the phone.
+
+```js
+Zen.openUrl("https://maps.google.com/");   // opens the browser / maps app
+Zen.share("My App", "Hey, look at this app I built with Zen!");
+```
+
+- `openUrl` returns `"ok"` or `"ERROR: ..."` (e.g. no app can handle the URL).
+- `share` opens Android's share sheet. The user picks an app (WhatsApp, mail,
+  …). Returns `"ok"`.
+
+---
+
+### 10.23 Pattern: a background location logger with a worker
+
+Putting it together — an app that keeps logging positions in the background,
+using a dedicated worker:
+
+`index.html`:
+
+```html
+<script src="app.js"></script>
+```
+
+`app.js (foreground page)`:
+
+```js
+function toggleLogging() {
+  if (Zen.getLocation() === "null") { alert("Location unavailable"); return; }
+  Zen.setBackgroundScript("worker.js");      // give the background its own job
+  Zen.startBackground();                      // start the hidden service
+  Zen.toast("Logging started");
+}
+```
+
+`worker.js (background worker)`:
+
+```js
+localStorage.setItem("zen.role", "bg");
+Zen.log("worker started");
+function tick() {
+  const raw = Zen.getLocation();
+  if (raw !== "null") {
+    var f = JSON.parse(raw);
+    var log = JSON.parse(localStorage.getItem("log") || "[]");
+    log.push({ lat: f.latitude, lng: f.longitude, t: f.time });
+    localStorage.setItem("log", JSON.stringify(log.slice(-500)));
+    Zen.notify("Position", f.latitude.toFixed(4) + ", " + f.longitude.toFixed(4));
+  }
+}
+tick();
+setInterval(tick, 60000);                     // every minute
+```
+
+And if you want a scheduled "wake me up later" style job, an alarm fits finer
+than a timer:
+
+```js
+Zen.setAlarm(3600000, "Check-in", "An hour has passed.");
 ```
 
 ---
@@ -817,7 +1071,7 @@ serves it to your browser with a fake-but-mostly-real `window.Zen`.
 ### Run it
 
 ```
-py zen.py ide HelloApp.zip
+zen ide HelloApp.zip
 ```
 
 Then open **http://127.0.0.1:8765/** in Chrome/Firefox/Edge. To stop: press
@@ -832,21 +1086,28 @@ where the preview files go.
 |---------|-----------|---------------|
 | `getLocation` | phone's GPS last fix | browser GPS cache |
 | `setLocationCallback` | GPS/network/fused listeners | browser `watchPosition` (real GPS!) |
-| `toast` | Android toast | floating box in the page |
+| `toast` / `toastLong` | Android toasts | floating box in the page |
 | `notify` | system notification | browser `Notification` |
+| `setAlarm` / `cancelAlarm` | real system alarm | toast pretending an alarm fired |
+| `subscribeSensor` | real sensors | `"ERROR: no sensors in the browser"` |
+| `vibrate`, `setBrightness`, `keepScreenOn`, `wakeLock`, `setVolume`, `setTorch` | real hardware | `"ok (debug)"` no-ops |
+| `clipboardWrite/Read` | system clipboard | browser clipboard (may prompt) |
+| `openUrl` / `share` | real apps | `window.open` / `navigator.share` |
+| `battery` / `device` | real battery + device info | stub JSON |
 | `setMockLocation` | mock providers | answers `ok`, does nothing |
 | `isRoot` | checks `su` | `false` |
 | `runRoot` | runs `su -c ...` | `{"exit":-1,...}` |
 | `showOverlay`/`hideOverlay` | real system overlay | div stuck to page |
 | `startBackground`/`stopBackground` | real service | console notes |
+| `setBackgroundScript`/`getBackgroundScript` | real worker switch | console note / `"index.html"` |
 | `checkPermission`/`requestPermission` | real runtime ask | always `true`/`"granted"` |
-| `version` | `"1.1"` | `"1.1-debug"` |
+| `version` | `"1.2"` | `"1.2-debug"` |
 
 **Workflow we recommend:**
 
-1. `py zen.py ide myapp.zip` — click through, watch the console.
+1. `zen ide myapp.zip` — click through, watch the console.
 2. Fix bugs.
-3. `py zen.py build myapp.zip` — one command, done.
+3. `zen build myapp.zip` — one command, done.
 
 One nerd-note: the IDE injects a script into `index.html` at
 `__zen/zen-debug.js`. If your zip happens to contain a file with that exact
@@ -893,6 +1154,9 @@ For mock location especially:
 adb logcat -s Zen:*            # shows only your Zen logs, live
 ```
 
+`console.log(...)` from your page appears there tagged `page:` or `bg page:`,
+so this is your number-one debugging tool on a real phone.
+
 ---
 
 ## 13. Common problems and how to fix them
@@ -913,6 +1177,20 @@ python.exe to PATH"**.
 ### Build takes forever the first time
 That's Gradle fetching its parts once. Rebuilds will be fast.
 
+### The app opens and immediately closes — but only on an emulator
+Some Android **emulator images have a broken WebView** installed. They say
+"WebView" is installed in Settings, but the native WebView runtime is corrupt,
+so any WebView app crashes instantly (the crash is in native code, nothing Zen
+can catch). This is a known emulator-image problem, not a Zen problem: install
+the APK on a real phone, or use a different/better-maintained emulator image.
+
+### The page briefly fails to load, then works (ERR_INVALID_RESPONSE)
+Zen's template auto-falls back from the virtual `appassets` address to a
+built-in `file://` copy of your page. If you ever see this, it means the
+fallback saved you. Verify with
+`adb logcat -s Zen:*` — look for `falling back to file:///...` and then a
+clean `page: ... loaded`.
+
 ### `Zen.setMockLocation` returns an "ERROR: not selected..."
 Done in [section 12](#12-putting-it-on-a-real-phone):
 Developer options → Mock location app → pick your app. Then retry.
@@ -921,18 +1199,34 @@ Developer options → Mock location app → pick your app. Then retry.
 The user tapped "don't allow" for notifications. Reinstall or go to
 `Settings → Apps → your app → Notifications` and switch it on.
 
-### Images / libraries from the internet don't show
-The app is offline. Put the files inside the zip, or use `https://` URLs (and
-the phone needs internet). Plain `http://` is blocked by default.
+### `Zen.setAlarm` set the alarm, but nothing happened
+Alarms are "inexact" — Android can delay them by a minute or two to save
+battery. Also make sure notifications are allowed (see above), the alarm
+wasn't replaced by a later `setAlarm` call, and the app wasn't "force stopped"
+in Settings (a force-stopped app by Android's rules must not fire alarms until
+it's opened again).
+
+### `Zen.subscribeSensor("pressure", …)` → "ERROR: no pressure on this device"
+That's hardware, not a bug: cheap phones usually lack a barometer. The common,
+always-present ones are `accelerometer`, `magnetometer`, `light`, `proximity`.
 
 ### Two copies of my code are running / double notifications
-You called `Zen.startBackground()`. The hidden service runs a *second* instance
-of your page. Either avoid duplicate side effects, or stop the service with
-`Zen.stopBackground()` when it's not needed.
+You called `Zen.startBackground()`. The hidden service runs a second copy of
+your page. Two fixes, pick one:
+1. Make the second copy *different* code — give it a dedicated worker with
+   `Zen.setBackgroundScript("worker.js")`, and mark roles in `localStorage`
+   (see [10.18](#1018-senbakgroundscriptname-and-zengetbakgroundscript-dedicated-worker-script)).
+2. Stop the service when it's not needed: `Zen.stopBackground()`.
+
+### `setTorch` returns an error
+`setTorch` needs the `CAMERA` permission granted, and the phone must have a
+flash (not every camera module has one). Grant the permission first:
+`Zen.requestPermission("android.permission.CAMERA")` — Zen ships the CAMERA
+permission declared, it just needs the user's OK at runtime.
 
 ### The screen never covers the very top/bottom
 The page doesn't handle the notch/fullscreen insets. Add the standard
-«viewport-fit=cover» + `env(safe-area-inset-*)` CSS padding to your page:
+`viewport-fit=cover` + `env(safe-area-inset-*)` CSS padding to your page:
 
 ```html
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -947,22 +1241,72 @@ body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inse
 ## 14. Handy one-page API reference
 
 ```
-version()               → "1.1" | "1.1-debug"
-log(msg)                → writes to logcat / console
-toast(msg)              → flash message
-checkPermission(perm)   → true | false
-requestPermission(perm) → "granted" | "requested"
-getLocation()           → '{"latitude",...}' | "null"
-setLocationCallback(ms) → calls window.__zenOnLocation(loc)
-clearLocationCallback() → stops streaming
-notify(title, body)     → system notification
-setMockLocation(lat,lng)→ "ok" | "ERROR: ..."
-isRoot()                → true | false
-runRoot(cmd)            → '{"exit":n,"out":"..."}'
-showOverlay(text)       → floating label
-hideOverlay()           → remove label
-startBackground()       → keep running in background
-stopBackground()        → stop it
+--- info ---
+version()                → "1.2" | "1.2-debug"
+log(msg)                 → writes to logcat / console
+toast(msg)               → short flash message
+toastLong(msg)           → long flash message
+now()                    → ms since epoch
+battery()                → '{"level","status","plugged"}'
+device()                 → '{"brand","model","manufacturer","sdk","release","arch"}'
+
+--- location ---
+getLocation()            → '{"latitude",...}' | "null"
+setLocationCallback(ms)  → calls window.__zenOnLocation(loc)
+clearLocationCallback()  → stops streaming
+setMockLocation(lat,lng) → "ok" | "ERROR: ..."
+
+--- sensors ---
+subscribeSensor(name,ms) → "ok" | "already subscribed" | "ERROR: ..."
+                           name: accelerometer|gyroscope|magnetometer|light|proximity|pressure
+                           each reading → window.__zenOnSensor(name,{x,y,z,t}|{v,t})
+unsubscribeSensor(name)  → "ok" | "not subscribed"
+
+--- notifications & alarms ---
+notify(title, body)      → system notification
+setAlarm(ms, t, b)       → real system alarm → system notification
+cancelAlarm()            → cancels it
+
+--- root ---
+isRoot()                 → true | false
+runRoot(cmd)             → '{"exit":n,"out":"..."}'
+
+--- overlay ---
+showOverlay(text)        → floating label
+hideOverlay()            → remove label
+
+--- background ---
+startBackground()        → keep running in background
+stopBackground()         → stop it
+setBackgroundScript(n)   → background loads web/<n> instead of index.html
+getBackgroundScript()    → current worker filename
+
+--- device & hardware ---
+vibrate(ms)              → "ok" | "ERROR: ..."   (1..60000)
+setBrightness(0..255)    → "ok" | "ERROR: ..."   (foreground only)
+keepScreenOn(bool)       → "ok" | "ERROR: ..."
+wakeLock(bool)           → "ok" | "ERROR: ..."   (10 min cap)
+setVolume(stream,pct)    → "ok" | "ERROR: ..."   (music|ring|alarm|notification)
+setTorch(bool)           → "ok" | "ERROR: ..."
+
+--- clipboard ---
+clipboardWrite(text)     → true | false
+clipboardRead()          → text string
+
+--- intents ---
+openUrl(url)             → "ok" | "ERROR: ..."
+share(title, text)       → android share sheet
+
+--- permissions ---
+checkPermission(perm)    → true | false
+requestPermission(perm)  → "granted" | "requested"
+```
+
+Streaming callbacks (define these globals in your page):
+
+```js
+window.__zenOnLocation(loc)                    // streams location
+window.__zenOnSensor(name, data)               // streams sensor readings
 ```
 
 Location shape (object handed to `__zenOnLocation`; same fields in

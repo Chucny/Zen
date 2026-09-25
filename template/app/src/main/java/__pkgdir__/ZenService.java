@@ -6,6 +6,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.IBinder;
 import android.util.Log;
 import android.webkit.WebResourceError;
@@ -30,7 +31,11 @@ public class ZenService extends Service {
         createChannel();
         try {
             webView = createWebView();
-            webView.loadUrl("https://appassets.androidplatform.net/assets/web/index.html");
+            String script = getSharedPreferences("zen_bg", MODE_PRIVATE).getString("script", "index.html");
+            if (script == null || !script.contains(".")) script = "index.html";
+            String url = "file:///android_asset/web/" + script;
+            Log.i(TAG, "background worker loading " + url);
+            webView.loadUrl(url);
         } catch (Throwable t) {
             Log.w(TAG, "background WebView unavailable: " + t);
         }
@@ -102,6 +107,13 @@ public class ZenService extends Service {
         s.setAllowFileAccessFromFileURLs(true);
         s.setAllowUniversalAccessFromFileURLs(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        wv.setWebChromeClient(new android.webkit.WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(android.webkit.ConsoleMessage m) {
+                Log.i(TAG, "bg page: " + m.message());
+                return true;
+            }
+        });
         wv.setVisibility(android.view.View.GONE);
         wv.addJavascriptInterface(new ZenBridge(this, null, wv), "Zen");
         return wv;
@@ -112,9 +124,12 @@ public class ZenService extends Service {
     private void fallbackIfNeeded(WebView view) {
         if (fallbackTried) return;
         fallbackTried = true;
-        Log.w(TAG, "appassets URL failed -> falling back to file:///android_asset/web/index.html");
+        String script = getSharedPreferences("zen_bg", MODE_PRIVATE).getString("script", "index.html");
+        if (script == null || !script.contains(".")) script = "index.html";
+        String url = "file:///android_asset/web/" + script;
+        Log.w(TAG, "background load failed -> reloading " + url);
         view.stopLoading();
-        view.loadUrl("file:///android_asset/web/index.html");
+        view.loadUrl(url);
     }
 
     private void createChannel() {

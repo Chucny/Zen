@@ -27,7 +27,7 @@ import time
 import zipfile
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-ZEN_VERSION = "1.1"
+ZEN_VERSION = "1.2"
 TOKEN_PKG = "{{PKG}}"
 TOKEN_APP = "{{APP}}"
 PKG_DIR_MARKER = "__pkgdir__"
@@ -39,37 +39,79 @@ META_DIRS = {"icons", "permissions", "package"}
 APIDOC = """\
 Zen JS API (window.Zen)
 
-READ-ONLY / MISC
-  Zen.version()                    string  wrapper version
-  Zen.log(msg)                     void    print to logcat
+--- MISC / INFO ---------------------------------------------------------
+  Zen.version()                    string  wrapper version ("1.2")
+  Zen.log(msg)                     void    print to logcat (/ adb logcat -s Zen)
   Zen.toast(msg)                   void    short Android toast
-  Zen.checkPermission(perm)        bool    is an android permission already granted
-  Zen.requestPermission(perm)      string  "granted" / "requested" / "denied"
+  Zen.toastLong(msg)               void    long Android toast
+  Zen.now()                        number  time since epoch in milliseconds
+  Zen.battery()                    string  JSON {level%, status, plugged} e.g. {"level":72,"status":"discharging","plugged":"none"}
+  Zen.device()                     string  JSON {brand,model,manufacturer,sdk,release,arch}
 
-LOCATION
+--- LOCATION ------------------------------------------------------------
   Zen.getLocation()                string  JSON {latitude,longitude,altitude,accuracy,speed,bearing,time} or "null"
   Zen.setLocationCallback(ms)      void    start streaming; each fix calls window.__zenOnLocation(json)
   Zen.clearLocationCallback()      void    stop streaming
 
-NOTIFICATIONS
-  Zen.notify(title, body)          void    system notification (prompts for POST_NOTIFICATIONS)
+--- SENSORS (streaming) ------------------------------------------------
+  Zen.subscribeSensor(name, ms)    string  "ok" / "already subscribed" / "ERROR: ..."
+                                        name = accelerometer | gyroscope | magnetometer | light | proximity | pressure
+                                        each reading calls window.__zenOnSensor(name, {x,y,z,t}) or {v,t}
+  Zen.unsubscribeSensor(name)      string  "ok" / "not subscribed"
 
-MOCK LOCATION
-  Zen.setMockLocation(lat, lng)    string  "ok" or "ERROR: ..." (app must be picked in Developer options > Mock location app)
+--- NOTIFICATIONS & ALARMS ----------------------------------------------
+  Zen.notify(title, body)          void    system notification (asks for POST_NOTIFICATIONS)
+  Zen.setAlarm(delayMs, t, b)      string  real AlarmManager alarm -> system notification after delayMs
+                                        works even if the app is killed; persisted on device
+  Zen.cancelAlarm()                string  "ok" / "no alarm set" (cancels the alarm above)
 
-ROOT
+--- MOCK LOCATION -------------------------------------------------------
+  Zen.setMockLocation(lat, lng)    string  "ok" or "ERROR: ..." (app must be picked as Mock location app)
+
+--- ROOT / SHELL --------------------------------------------------------
   Zen.isRoot()                     bool    true if 'su' works
   Zen.runRoot(cmd)                 string  JSON {exit, out} of `su -c "<cmd>"`
 
-OVERLAY
+--- OVERLAY ------------------------------------------------------------
   Zen.showOverlay(text)            void    floating text overlay (needs SYSTEM_ALERT_WINDOW)
   Zen.hideOverlay()                void    remove overlay
 
-BACKGROUND
+--- BACKGROUND ----------------------------------------------------------
   Zen.startBackground()            void    start hidden WebView foreground service so JS keeps running
   Zen.stopBackground()             void    stop it
+  Zen.setBackgroundScript(name)    string  "ok" - background service loads web/<name> instead of index.html
+                                        call it BEFORE startBackground; e.g. setBackgroundScript("worker.js")
+  Zen.getBackgroundScript()        string  current background script filename
 
-Location streaming: define window.__zenOnLocation = function(loc){...} in your page.
+--- DEVICE / HARDWARE ---------------------------------------------------
+  Zen.vibrate(ms)                  string  "ok" / "ERROR: ..." (1..60000 ms)
+  Zen.setBrightness(v)             string  screen brightness 0..255 (foreground only)
+  Zen.keepScreenOn(bool)           string  keep the screen awake while the page is open
+  Zen.wakeLock(bool)               string  partial CPU wake lock for background JS (10 min cap)
+  Zen.setVolume(stream, pct)       string  stream = music | ring | alarm | notification ; pct 0..100
+  Zen.setTorch(bool)               string  toggle the camera flash (needs CAMERA permission)
+
+--- CLIPBOARD -----------------------------------------------------------
+  Zen.clipboardWrite(text)         bool    copy text to the clipboard
+  Zen.clipboardRead()              string  current clipboard text ("" if empty/unavailable)
+
+--- INTENTS -------------------------------------------------------------
+  Zen.openUrl(url)                 string  open url in the default browser/app
+  Zen.share(title, text)           string  open the Android share sheet
+
+--- PERMISSIONS ---------------------------------------------------------
+  Zen.checkPermission(perm)        bool    is an android permission already granted
+  Zen.requestPermission(perm)      string  "granted" / "requested"
+
+STREAMING CALLBACKS (define these globals in your page):
+  window.__zenOnLocation(loc)      fired while location streaming is on
+  window.__zenOnSensor(name, data) fired for each subscribed sensor reading
+
+EXAMPLE
+  Zen.setLocationCallback(1000);
+  Zen.subscribeSensor("accelerometer", 100);
+  window.__zenOnLocation = function(l) { console.log("lat", l.latitude); };
+  window.__zenOnSensor = function(n, d) { console.log(n, d.x, d.y, d.z); };
 """
 
 
@@ -397,9 +439,13 @@ DEBUG_SHIM = """\
     });
   }
   window.Zen = {
-    version: function () { return '1.1-debug'; },
+    version: function () { return '1.2-debug'; },
     log: function (m) { console.log('[Zen]', m); },
     toast: function (m) { toastDiv(m); },
+    toastLong: function (m) { toastDiv(m); },
+    now: function () { return Date.now(); },
+    battery: function () { return '{}'; },
+    device: function () { return JSON.stringify({ brand: 'browser', model: 'desktop', sdk: 0, release: 'debug', arch: navigator.platform || '' }); },
     getLocation: function () { return lastLoc ? lastLoc : 'null'; },
     setLocationCallback: function (ms) {
       if (!navigator.geolocation) { toastDiv('geolocation unavailable in this browser'); return; }
@@ -440,6 +486,34 @@ DEBUG_SHIM = """\
     hideOverlay: function () { if (overlay) { overlay.remove(); overlay = null; } },
     startBackground: function () { console.log('[Zen] startBackground is a no-op in debug'); },
     stopBackground: function () { console.log('[Zen] stopBackground is a no-op in debug'); },
+    setBackgroundScript: function (n) { console.log('[Zen] background script set to', n); return 'ok (debug)'; },
+    getBackgroundScript: function () { return 'index.html'; },
+    subscribeSensor: function () { return 'ERROR: no sensors in the browser'; },
+    unsubscribeSensor: function () { return 'ok'; },
+    setAlarm: function (ms, t, b) { toastDiv('[alarm in ' + ms + 'ms] ' + t + ': ' + b); return 'ok (debug)'; },
+    cancelAlarm: function () { return 'ok (debug)'; },
+    vibrate: function () { return 'ok (debug)'; },
+    setBrightness: function () { return 'ok (debug)'; },
+    keepScreenOn: function () { return 'ok (debug)'; },
+    wakeLock: function () { return 'ok (debug)'; },
+    setVolume: function () { return 'ok (debug)'; },
+    setTorch: function () { return 'ok (debug)'; },
+    clipboardWrite: function (t) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(String(t)).catch(function () {});
+        return true;
+      }
+      return false;
+    },
+    clipboardRead: function () {
+      return '';
+    },
+    openUrl: function (u) { window.open(String(u), '_blank'); return 'ok'; },
+    share: function (title, text) {
+      if (navigator.share) navigator.share({ title: String(title), text: String(text) }).catch(function () {});
+      else toastDiv('[share] ' + title + ': ' + text);
+      return 'ok';
+    },
     checkPermission: function () { return true; },
     requestPermission: function (p) { return 'granted'; }
   };
