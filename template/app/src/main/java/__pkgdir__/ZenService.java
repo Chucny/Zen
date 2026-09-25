@@ -8,6 +8,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.os.IBinder;
 import android.util.Log;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -27,8 +28,12 @@ public class ZenService extends Service {
     public void onCreate() {
         super.onCreate();
         createChannel();
-        webView = createWebView();
-        webView.loadUrl("https://appassets.androidplatform.net/assets/web/index.html");
+        try {
+            webView = createWebView();
+            webView.loadUrl("https://appassets.androidplatform.net/assets/web/index.html");
+        } catch (Throwable t) {
+            Log.w(TAG, "background WebView unavailable: " + t);
+        }
     }
 
     @Override
@@ -70,14 +75,46 @@ public class ZenService extends Service {
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 return loader.shouldInterceptRequest(request.getUrl());
             }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (error != null) {
+                    Log.w(TAG, "background load error " + error.getErrorCode() + ": " + error.getDescription()
+                            + " <- " + request.getUrl() + " main=" + request.isForMainFrame());
+                }
+                if (request != null && request.isForMainFrame()) {
+                    fallbackIfNeeded(view);
+                }
+            }
+
+            @SuppressWarnings("deprecation")
+            @Override
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                Log.w(TAG, "background load error " + errorCode + ": " + description + " <- " + failingUrl);
+                fallbackIfNeeded(view);
+            }
         });
         WebSettings s = wv.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
+        s.setAllowFileAccess(true);
+        s.setAllowFileAccessFromFileURLs(true);
+        s.setAllowUniversalAccessFromFileURLs(true);
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         wv.setVisibility(android.view.View.GONE);
         wv.addJavascriptInterface(new ZenBridge(this, null, wv), "Zen");
         return wv;
+    }
+
+    private boolean fallbackTried = false;
+
+    private void fallbackIfNeeded(WebView view) {
+        if (fallbackTried) return;
+        fallbackTried = true;
+        Log.w(TAG, "appassets URL failed -> falling back to file:///android_asset/web/index.html");
+        view.stopLoading();
+        view.loadUrl("file:///android_asset/web/index.html");
     }
 
     private void createChannel() {
